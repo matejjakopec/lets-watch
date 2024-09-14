@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "485599086383",
+    "project_id": "lets-watch-mj",
+    "storage_bucket": "lets-watch-mj.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:485599086383:android:514cdb6679f10390a9c3da",
+        "android_client_info": {
+          "package_name": "com.mjakopec.letswatch"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCNPjaC4TSZHgvX6GVa2AD0yJzRprdwj_k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
