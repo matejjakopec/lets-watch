@@ -1,8 +1,10 @@
 package com.mjakopec.letswatch
 
 
+import android.content.Context
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -47,6 +49,7 @@ import androidx.compose.foundation.gestures.*
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberImagePainter
 import kotlinx.coroutines.withContext
@@ -54,71 +57,154 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.coroutines.*
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
+import androidx.compose.ui.platform.LocalConfiguration
+import kotlinx.coroutines.tasks.await
 
-private var json: Json = Json { ignoreUnknownKeys = true }
+var json: Json = Json { ignoreUnknownKeys = true }
+private lateinit var db: FirebaseFirestore
 
 class BrowseActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        db = Firebase.firestore
         super.onCreate(savedInstanceState)
         setContent {
             BrowserScreen()
         }
     }
 }
+
 @OptIn(ExperimentalWearMaterialApi::class)
 @Composable
 fun BrowserScreen() {
     var movies by remember { mutableStateOf<List<Movie>>(emptyList()) }
     var currentMovieIndex by remember { mutableStateOf(0) }
     var isLoading by remember { mutableStateOf(true) }
+    var likedMoviesIds by remember { mutableStateOf<List<Int>>(emptyList()) }
+    var dislikedMoviesIds by remember { mutableStateOf<List<Int>>(emptyList()) }
 
     LaunchedEffect(Unit) {
-        movies = fetchMovies()
-        isLoading = false
-        // Load additional movies in background
-        launch {
-            val moreMovies = fetchMovies(page = 2)
-            movies += moreMovies
+        val user = Firebase.auth.currentUser
+        if (user != null) {
+            val userData = db.collection("users").document(user.email.toString())
+
+            try {
+                // Fetch liked and disliked movies synchronously using await()
+                val document = userData.get().await()
+                if (document != null && document.exists()) {
+                    likedMoviesIds = document.get("likedMovies") as? List<Int> ?: emptyList()
+                    dislikedMoviesIds = document.get("dislikedMovies") as? List<Int> ?: emptyList()
+                    Log.d("liked", likedMoviesIds.toString());
+                    Log.d("disliked", dislikedMoviesIds.toString());
+                }
+            } catch (e: Exception) {
+                Log.w("Firebase", "Error fetching liked/disliked movies", e)
+            }
         }
+
+        // Now that we have the liked and disliked movie IDs, fetch and filter the movies
+        var page = 1
+        val maxPages = 20  // Adjust as needed
+        var fetchedMovies: List<Movie>
+
+        do {
+            val newMovies = fetchMovies(page)
+
+            // Filter out movies that have been liked or disliked using an explicit loop
+            val filteredMovies = mutableListOf<Movie>()
+            for (movie in newMovies) {
+                if (!likedMoviesIds.contains(movie.id) && !dislikedMoviesIds.contains(movie.id)) {
+                    filteredMovies.add(movie)
+                }
+            }
+            fetchedMovies = filteredMovies
+
+            movies += fetchedMovies
+            page++
+        } while (fetchedMovies.isNotEmpty() && page <= maxPages)
+
+        isLoading = false
     }
 
-    Box(modifier = Modifier
-        .fillMaxSize()
-        .background(Color.Black)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+    ) {
         if (isLoading) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center),
+                color = Color.Red
+                )
         } else if (movies.isNotEmpty()) {
             MovieCarousel(movies, currentMovieIndex) { newIndex ->
                 currentMovieIndex = newIndex  // Update index on swipe
             }
         } else {
-            Text("Failed to load movie data", color = Color.White, modifier = Modifier.align(Alignment.Center))
+            Text(
+                "No more movies to browse",
+                color = Color.White,
+                modifier = Modifier.align(Alignment.Center)
+            )
         }
     }
 }
+
+// Fetch liked and disliked movies from Firebase
+suspend fun fetchLikedAndDislikedMovies(): Pair<List<Int>, List<Int>> = withContext(Dispatchers.IO) {
+    val user = Firebase.auth.currentUser
+    val userData = db.collection("users").document(user?.email.toString())
+    val likedMovies = mutableListOf<Int>()
+    val dislikedMovies = mutableListOf<Int>()
+
+    try {
+        val documentSnapshot = userData.get().await()
+        likedMovies.addAll(documentSnapshot.get("likedMovies") as? List<Int> ?: emptyList())
+        dislikedMovies.addAll(documentSnapshot.get("dislikedMovies") as? List<Int> ?: emptyList())
+    } catch (e: Exception) {
+        Log.e("Firebase", "Error fetching liked/disliked movies", e)
+    }
+
+    return@withContext Pair(likedMovies, dislikedMovies)
+}
+
 @OptIn(ExperimentalWearMaterialApi::class)
 @Composable
 fun MovieCarousel(movies: List<Movie>, currentIndex: Int, updateIndex: (Int) -> Unit) {
-    val swipeableState = rememberSwipeableState(initialValue = currentIndex)
+    val context = LocalContext.current
+    var currentMovieIndex by remember { mutableStateOf(currentIndex) }
+    val swipeableState = rememberSwipeableState(initialValue = 0)  // Start from neutral position
     val scope = rememberCoroutineScope()
 
-    BoxWithConstraints {
-        val screenWidth = maxWidth
-        val anchors = mapOf(
-            0f to currentIndex,  // Current index
-            -screenWidth.value to (currentIndex + 1) % movies.size,  // Next movie index (swipe right)
-            screenWidth.value to if (currentIndex - 1 < 0) movies.size - 1 else (currentIndex - 1)  // Previous movie index (swipe left)
-        )
+    // Get screen width in pixels
+    val configuration = LocalConfiguration.current
+    val screenWidth = with(LocalDensity.current) { configuration.screenWidthDp.dp.toPx() }
 
-        Column(modifier = Modifier
+    Box(
+        modifier = Modifier
+            .fillMaxSize() // Ensure the swipeable area covers the entire screen
             .swipeable(
                 state = swipeableState,
-                anchors = anchors,
+                anchors = mapOf(
+                    -screenWidth to -1,  // Left swipe (dislike)
+                    0f to 0,  // Neutral position (no swipe)
+                    screenWidth to 1  // Right swipe (like)
+                ),
                 thresholds = { _, _ -> FractionalThreshold(0.3f) },
                 orientation = Orientation.Horizontal
             )
+    ) {
+        val movie = movies[currentMovieIndex]
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter) // Keep content aligned at the top of the screen
         ) {
-            val movie = movies[currentIndex]
             Image(
                 painter = rememberImagePainter(
                     "https://image.tmdb.org/t/p/original${movie.backdrop_path}",
@@ -129,15 +215,77 @@ fun MovieCarousel(movies: List<Movie>, currentIndex: Int, updateIndex: (Int) -> 
                 contentDescription = "Movie Backdrop",
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(200.dp),  // Adjusted for example
+                    .height(400.dp),
                 contentScale = ContentScale.Crop
             )
+            Spacer(Modifier.height(20.dp))
             MovieDetails(movie)
         }
 
+        // Detect when swipe is completed
         LaunchedEffect(swipeableState.currentValue) {
-            updateIndex(swipeableState.currentValue)
+            val movie = movies[currentMovieIndex]
+            if (swipeableState.currentValue != 0) {
+                val direction = swipeableState.currentValue
+                // Always move to the next movie
+                currentMovieIndex = (currentMovieIndex + 1) % movies.size
+
+                // Handle swipe direction and update Firebase
+                if (direction == 1) {
+                    // Swiped right - Add to liked array
+                    addToFirebase(movie, liked = false, context)
+                } else if (direction == -1) {
+                    // Swiped left - Add to disliked array
+                    addToFirebase(movie, liked = true, context)
+                }
+
+                // Reset swipeable state after handling swipe
+                swipeableState.snapTo(0)
+
+                // Update the index for display
+                updateIndex(currentMovieIndex)
+            }
         }
+    }
+}
+
+fun addToFirebase(movie: Movie, liked: Boolean, context: Context) {
+    val user = Firebase.auth.currentUser
+    val userData = db.collection("users").document(user?.email.toString())
+
+    if (liked) {
+        // Add movie to likedMovies array
+        Toast.makeText(
+            context,
+            "Movie liked",
+            Toast.LENGTH_SHORT,
+        ).show()
+
+        // Use update() to append the movie ID to the likedMovies array
+        userData.update("likedMovies", FieldValue.arrayUnion(movie.id))
+            .addOnSuccessListener {
+                Log.d("Firebase", "Movie added to likedMovies successfully.")
+            }
+            .addOnFailureListener { e ->
+                Log.w("Firebase", "Error adding movie to likedMovies", e)
+            }
+
+    } else {
+        // Add movie to dislikedMovies array
+        Toast.makeText(
+            context,
+            "Movie disliked",
+            Toast.LENGTH_SHORT,
+        ).show()
+
+        // Use update() to append the movie ID to the dislikedMovies array
+        userData.update("dislikedMovies", FieldValue.arrayUnion(movie.id))
+            .addOnSuccessListener {
+                Log.d("Firebase", "Movie added to dislikedMovies successfully.")
+            }
+            .addOnFailureListener { e ->
+                Log.w("Firebase", "Error adding movie to dislikedMovies", e)
+            }
     }
 }
 
@@ -148,10 +296,70 @@ fun MovieDetails(movie: Movie) {
             .padding(16.dp)
             .fillMaxWidth()
     ) {
-        Text("Title: ${movie.title}", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 20.sp)
-        Text("Date of Release: ${movie.release_date}", color = Color.White, fontSize = 18.sp)
-        Text("Average Vote: ${movie.vote_average}", color = Color.White, fontSize = 18.sp)
-        Text("Description: ${movie.overview}", color = Color.White, fontSize = 16.sp)
+        // Title
+        Row {
+            Text(
+                text = "Title: ",
+                color = Color.Gray,
+                fontSize = 24.sp
+            )
+            Text(
+                text = movie.title,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                fontSize = 24.sp
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+
+        // Date of Release
+        Row {
+            Text(
+                text = "Date of Release: ",
+                color = Color.Gray,
+                fontSize = 18.sp
+            )
+            Text(
+                text = movie.release_date,
+                color = Color.White,
+                fontSize = 18.sp
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+
+        // Average Vote with Star Symbol
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Average Vote: ",
+                color = Color.Gray,
+                fontSize = 18.sp
+            )
+            Text(
+                text = "${movie.vote_average}",
+                color = Color.White,
+                fontSize = 18.sp
+            )
+            Text(
+                text = " ★",
+                color = Color.White,
+                fontSize = 18.sp
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+
+        // Description
+        Text(
+            text = "Description:",
+            color = Color.Gray,
+            fontSize = 16.sp
+        )
+        Text(
+            text = movie.overview,
+            color = Color.White,
+            fontSize = 16.sp
+        )
     }
 }
 
