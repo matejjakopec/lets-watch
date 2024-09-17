@@ -1,6 +1,5 @@
 package com.mjakopec.letswatch
 
-
 import android.content.Context
 import android.os.Bundle
 import android.util.Log
@@ -93,28 +92,24 @@ fun BrowserScreen() {
             val userData = db.collection("users").document(user.email.toString())
 
             try {
-                // Fetch liked and disliked movies synchronously using await()
                 val document = userData.get().await()
                 if (document != null && document.exists()) {
                     likedMoviesIds = document.get("likedMovies") as? List<Int> ?: emptyList()
                     dislikedMoviesIds = document.get("dislikedMovies") as? List<Int> ?: emptyList()
-                    Log.d("liked", likedMoviesIds.toString());
-                    Log.d("disliked", dislikedMoviesIds.toString());
+                    Log.d("liked", likedMoviesIds.toString())
+                    Log.d("disliked", dislikedMoviesIds.toString())
                 }
             } catch (e: Exception) {
                 Log.w("Firebase", "Error fetching liked/disliked movies", e)
             }
         }
 
-        // Now that we have the liked and disliked movie IDs, fetch and filter the movies
         var page = 1
-        val maxPages = 20  // Adjust as needed
+        val maxPages = 20
         var fetchedMovies: List<Movie>
 
         do {
             val newMovies = fetchMovies(page)
-
-            // Filter out movies that have been liked or disliked using an explicit loop
             val filteredMovies = mutableListOf<Movie>()
             for (movie in newMovies) {
                 if (!likedMoviesIds.contains(movie.id) && !dislikedMoviesIds.contains(movie.id)) {
@@ -139,10 +134,10 @@ fun BrowserScreen() {
             CircularProgressIndicator(
                 modifier = Modifier.align(Alignment.Center),
                 color = Color.Red
-                )
+            )
         } else if (movies.isNotEmpty()) {
             MovieCarousel(movies, currentMovieIndex) { newIndex ->
-                currentMovieIndex = newIndex  // Update index on swipe
+                currentMovieIndex = newIndex
             }
         } else {
             Text(
@@ -154,7 +149,6 @@ fun BrowserScreen() {
     }
 }
 
-// Fetch liked and disliked movies from Firebase
 suspend fun fetchLikedAndDislikedMovies(): Pair<List<Int>, List<Int>> = withContext(Dispatchers.IO) {
     val user = Firebase.auth.currentUser
     val userData = db.collection("users").document(user?.email.toString())
@@ -177,22 +171,20 @@ suspend fun fetchLikedAndDislikedMovies(): Pair<List<Int>, List<Int>> = withCont
 fun MovieCarousel(movies: List<Movie>, currentIndex: Int, updateIndex: (Int) -> Unit) {
     val context = LocalContext.current
     var currentMovieIndex by remember { mutableStateOf(currentIndex) }
-    val swipeableState = rememberSwipeableState(initialValue = 0)  // Start from neutral position
+    val swipeableState = rememberSwipeableState(initialValue = 0)
     val scope = rememberCoroutineScope()
-
-    // Get screen width in pixels
     val configuration = LocalConfiguration.current
     val screenWidth = with(LocalDensity.current) { configuration.screenWidthDp.dp.toPx() }
 
     Box(
         modifier = Modifier
-            .fillMaxSize() // Ensure the swipeable area covers the entire screen
+            .fillMaxSize()
             .swipeable(
                 state = swipeableState,
                 anchors = mapOf(
-                    -screenWidth to -1,  // Left swipe (dislike)
-                    0f to 0,  // Neutral position (no swipe)
-                    screenWidth to 1  // Right swipe (like)
+                    -screenWidth to -1,
+                    0f to 0,
+                    screenWidth to 1
                 ),
                 thresholds = { _, _ -> FractionalThreshold(0.3f) },
                 orientation = Orientation.Horizontal
@@ -203,7 +195,7 @@ fun MovieCarousel(movies: List<Movie>, currentIndex: Int, updateIndex: (Int) -> 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.TopCenter) // Keep content aligned at the top of the screen
+                .align(Alignment.TopCenter)
         ) {
             Image(
                 painter = rememberImagePainter(
@@ -222,27 +214,19 @@ fun MovieCarousel(movies: List<Movie>, currentIndex: Int, updateIndex: (Int) -> 
             MovieDetails(movie)
         }
 
-        // Detect when swipe is completed
         LaunchedEffect(swipeableState.currentValue) {
             val movie = movies[currentMovieIndex]
             if (swipeableState.currentValue != 0) {
                 val direction = swipeableState.currentValue
-                // Always move to the next movie
                 currentMovieIndex = (currentMovieIndex + 1) % movies.size
 
-                // Handle swipe direction and update Firebase
                 if (direction == 1) {
-                    // Swiped right - Add to liked array
                     addToFirebase(movie, liked = false, context)
                 } else if (direction == -1) {
-                    // Swiped left - Add to disliked array
                     addToFirebase(movie, liked = true, context)
                 }
 
-                // Reset swipeable state after handling swipe
                 swipeableState.snapTo(0)
-
-                // Update the index for display
                 updateIndex(currentMovieIndex)
             }
         }
@@ -254,14 +238,12 @@ fun addToFirebase(movie: Movie, liked: Boolean, context: Context) {
     val userData = db.collection("users").document(user?.email.toString())
 
     if (liked) {
-        // Add movie to likedMovies array
         Toast.makeText(
             context,
             "Movie liked",
             Toast.LENGTH_SHORT,
         ).show()
 
-        // Use update() to append the movie ID to the likedMovies array
         userData.update("likedMovies", FieldValue.arrayUnion(movie.id))
             .addOnSuccessListener {
                 Log.d("Firebase", "Movie added to likedMovies successfully.")
@@ -271,14 +253,12 @@ fun addToFirebase(movie: Movie, liked: Boolean, context: Context) {
             }
 
     } else {
-        // Add movie to dislikedMovies array
         Toast.makeText(
             context,
             "Movie disliked",
             Toast.LENGTH_SHORT,
         ).show()
 
-        // Use update() to append the movie ID to the dislikedMovies array
         userData.update("dislikedMovies", FieldValue.arrayUnion(movie.id))
             .addOnSuccessListener {
                 Log.d("Firebase", "Movie added to dislikedMovies successfully.")
@@ -296,7 +276,6 @@ fun MovieDetails(movie: Movie) {
             .padding(16.dp)
             .fillMaxWidth()
     ) {
-        // Title
         Row {
             Text(
                 text = "Title: ",
@@ -312,7 +291,6 @@ fun MovieDetails(movie: Movie) {
         }
         Spacer(Modifier.height(10.dp))
 
-        // Date of Release
         Row {
             Text(
                 text = "Date of Release: ",
@@ -327,7 +305,6 @@ fun MovieDetails(movie: Movie) {
         }
         Spacer(Modifier.height(10.dp))
 
-        // Average Vote with Star Symbol
         Row(
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -349,7 +326,6 @@ fun MovieDetails(movie: Movie) {
         }
         Spacer(Modifier.height(10.dp))
 
-        // Description
         Text(
             text = "Description:",
             color = Color.Gray,

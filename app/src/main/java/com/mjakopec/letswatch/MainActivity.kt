@@ -92,7 +92,6 @@ class MainActivity : ComponentActivity() {
         db = Firebase.firestore
 
         setContent {
-            // Applying a black color scheme across the entire app
             MaterialTheme(
                 colorScheme = darkColorScheme(
                     background = Color.Black,
@@ -112,15 +111,10 @@ class MainActivity : ComponentActivity() {
 fun MainScreen(user: FirebaseUser?) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-
-    // State to manage the connection status
     var connectedTo by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(true) }
-
-    // State to manage the current screen
     var currentScreen by remember { mutableStateOf("mainScreen") }
 
-    // Fetch user data once and update the UI state
     LaunchedEffect(user) {
         val userData = db.collection("users").document(user?.email.toString())
         userData.get().addOnSuccessListener { document ->
@@ -216,10 +210,10 @@ fun MainScreen(user: FirebaseUser?) {
                                     MoviesListScreen(user, "Liked Movies", connectedTo)
                                 }
                                 "dislikedMovies" -> {
-                                    MoviesListScreen(user, "Disliked Movies", connectedTo) // Handle Disliked Movies
+                                    MoviesListScreen(user, "Disliked Movies", connectedTo)
                                 }
                                 "watchedMovies" -> {
-                                    MoviesListScreen(user, "Watched Movies", connectedTo) // Handle Watched Movies
+                                    MoviesListScreen(user, "Watched Movies", connectedTo)
                                 }
                                 "likedByBoth" -> {
                                     MoviesListScreen(user, "Liked by Both", connectedTo)
@@ -228,7 +222,6 @@ fun MainScreen(user: FirebaseUser?) {
                                     MoviesListScreen(user, "Liked by Me", connectedTo)
                                 }
                                 else -> {
-                                    // Handle unknown screen
                                     Text(
                                         "Unknown screen",
                                         color = Color.White,
@@ -244,7 +237,6 @@ fun MainScreen(user: FirebaseUser?) {
     }
 }
 
-
 @Composable
 fun ConnectedWelcomeScreen(user: FirebaseUser?, connectedTo: String?) {
     val context = LocalContext.current
@@ -255,20 +247,15 @@ fun ConnectedWelcomeScreen(user: FirebaseUser?, connectedTo: String?) {
     var likedMovieError by remember { mutableStateOf<String?>(null) }
     var watchedMovieError by remember { mutableStateOf<String?>(null) }
 
-    // Fetch the most recent liked and watched movies
     LaunchedEffect(Unit) {
         if (user != null) {
             val userData = db.collection("users").document(user.email.toString())
             try {
                 val document = userData.get().await()
                 if (document.exists()) {
-                    // Fetch liked movie IDs
                     val likedMovieIds = (document.get("likedMovies") as? List<Long>)?.map { it.toInt() } ?: emptyList()
-
-                    // Fetch watched movie IDs
                     val watchedMovieIds = (document.get("watchedMovies") as? List<Long>)?.map { it.toInt() } ?: emptyList()
 
-                    // Fetch the most recent liked movie
                     if (likedMovieIds.isNotEmpty()) {
                         val mostRecentLikedMovieId = likedMovieIds.last()
                         mostRecentLikedMovie = fetchMovieById(mostRecentLikedMovieId)
@@ -276,7 +263,6 @@ fun ConnectedWelcomeScreen(user: FirebaseUser?, connectedTo: String?) {
                         likedMovieError = "You have not liked any movies yet."
                     }
 
-                    // Fetch the most recent watched movie
                     if (watchedMovieIds.isNotEmpty()) {
                         val mostRecentWatchedMovieId = watchedMovieIds.last()
                         mostRecentWatchedMovie = fetchMovieById(mostRecentWatchedMovieId)
@@ -300,7 +286,7 @@ fun ConnectedWelcomeScreen(user: FirebaseUser?, connectedTo: String?) {
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
-            .padding(top = 56.dp), // Add padding to leave space at the top
+            .padding(top = 56.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (isLoadingMovie) {
@@ -329,7 +315,6 @@ fun ConnectedWelcomeScreen(user: FirebaseUser?, connectedTo: String?) {
             )
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Display Most Recent Liked Movie
             if (mostRecentLikedMovie != null) {
                 Text(
                     "Most Recent Liked Movie:",
@@ -339,7 +324,7 @@ fun ConnectedWelcomeScreen(user: FirebaseUser?, connectedTo: String?) {
                 MovieItem(
                     movie = mostRecentLikedMovie!!,
                     movieType = "MainScreen",
-                    onWatchedClicked = {} // Empty lambda since no action is needed here
+                    onWatchedClicked = {}
                 )
             } else if (likedMovieError != null) {
                 Text(likedMovieError!!, color = Color.White)
@@ -353,7 +338,6 @@ fun ConnectedWelcomeScreen(user: FirebaseUser?, connectedTo: String?) {
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Display Most Recent Watched Movie
             if (mostRecentWatchedMovie != null) {
                 Text(
                     "Most Recent Watched Movie:",
@@ -373,22 +357,20 @@ fun ConnectedWelcomeScreen(user: FirebaseUser?, connectedTo: String?) {
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // FloatingActionButton positioned at the bottom
         FloatingActionButton(
             onClick = {
-                // Intent to start BrowseActivity
                 val intent = Intent(context, BrowseActivity::class.java)
                 context.startActivity(intent)
             },
             containerColor = Color.Red,
-            shape = RoundedCornerShape(50), // Set the shape of the button
+            shape = RoundedCornerShape(50),
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
                 .padding(bottom = 35.dp)
                 .width(150.dp)
-                .height(56.dp) // Set a height to define the button size
-                .clip(RoundedCornerShape(50)) // Clip the content to the rounded shape
-                .border(3.dp, Color.White, RoundedCornerShape(50)) // Apply the rounded border
+                .height(56.dp)
+                .clip(RoundedCornerShape(50))
+                .border(3.dp, Color.White, RoundedCornerShape(50))
         ) {
             Text("Start Browsing", color = Color.White)
         }
@@ -402,7 +384,6 @@ fun MoviesListScreen(user: FirebaseUser?, movieType: String, connectedTo: String
     var isLoadingMovies by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // Fetch movies based on type
     LaunchedEffect(Unit) {
         if (user != null) {
             val userData = db.collection("users").document(user.email.toString())
@@ -410,7 +391,6 @@ fun MoviesListScreen(user: FirebaseUser?, movieType: String, connectedTo: String
             try {
                 val document = userData.get().await()
                 if (document.exists()) {
-                    // Handle movie fetching based on type
                     val movieIds = when (movieType) {
                         "Liked Movies" -> (document.get("likedMovies") as? List<Long>)?.map { it.toInt() } ?: emptyList()
                         "Disliked Movies" -> (document.get("dislikedMovies") as? List<Long>)?.map { it.toInt() } ?: emptyList()
@@ -422,8 +402,6 @@ fun MoviesListScreen(user: FirebaseUser?, movieType: String, connectedTo: String
                             if (connectedDoc.exists()) {
                                 val connectedLikedMovies = (connectedDoc.get("likedMovies") as? List<Long>)?.map { it.toInt() } ?: emptyList()
                                 val userLikedMovies = (document.get("likedMovies") as? List<Long>)?.map { it.toInt() } ?: emptyList()
-
-                                // Fetch intersection of both users' liked movies
                                 userLikedMovies.intersect(connectedLikedMovies).toList()
                             } else emptyList()
                         }
@@ -434,15 +412,12 @@ fun MoviesListScreen(user: FirebaseUser?, movieType: String, connectedTo: String
                             if (connectedDoc.exists()) {
                                 val connectedLikedMovies = (connectedDoc.get("likedMovies") as? List<Long>)?.map { it.toInt() } ?: emptyList()
                                 val userLikedMovies = (document.get("likedMovies") as? List<Long>)?.map { it.toInt() } ?: emptyList()
-
-                                // Fetch movies liked by me but not by the connected user
                                 userLikedMovies.subtract(connectedLikedMovies).toList()
                             } else emptyList()
                         }
                         else -> emptyList()
                     }
 
-                    // Fetch movie details concurrently
                     movies = fetchMoviesByIds(movieIds)
                 }
             } catch (e: Exception) {
@@ -463,7 +438,6 @@ fun MoviesListScreen(user: FirebaseUser?, movieType: String, connectedTo: String
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Loading and error handling
         if (isLoadingMovies) {
             CircularProgressIndicator(color = Color.Red)
         } else if (errorMessage != null) {
@@ -477,7 +451,6 @@ fun MoviesListScreen(user: FirebaseUser?, movieType: String, connectedTo: String
                         movieType = movieType,
                         onWatchedClicked = { movieId ->
                             moveMovieToWatched(user, movieId) {
-                                // Update UI after moving the movie
                                 movies = movies.filter { it.id != movieId }
                                 Toast.makeText(
                                     context,
@@ -503,6 +476,7 @@ fun MoviesListScreen(user: FirebaseUser?, movieType: String, connectedTo: String
     }
 }
 
+
 @Composable
 fun MovieItem(
     movie: Movie,
@@ -517,7 +491,6 @@ fun MovieItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (imageOnLeft) {
-            // **Image on the left**
             Image(
                 painter = rememberImagePainter(
                     data = "https://image.tmdb.org/t/p/w200${movie.poster_path}",
@@ -536,23 +509,22 @@ fun MovieItem(
                 modifier = Modifier
                     .weight(1f)
                     .align(Alignment.CenterVertically),
-                horizontalAlignment = Alignment.CenterHorizontally // **Center content horizontally**
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = movie.title,
                     color = Color.White,
                     style = MaterialTheme.typography.titleMedium,
-                    textAlign = TextAlign.Center // **Center text within Text**
+                    textAlign = TextAlign.Center
                 )
                 Text(
                     text = "Release Date: ${movie.release_date}",
                     color = Color.Gray,
                     style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center // **Center text within Text**
+                    textAlign = TextAlign.Center
                 )
                 if ((movieType == "Liked Movies" || movieType == "Liked by Me" || movieType == "Liked by Both") && onWatchedClicked != null) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    // **Center the button horizontally**
                     OutlinedButton(
                         onClick = { onWatchedClicked(movie.id) },
                         modifier = Modifier.align(Alignment.CenterHorizontally),
@@ -569,28 +541,26 @@ fun MovieItem(
                 }
             }
         } else {
-            // **Image on the right**
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .align(Alignment.CenterVertically),
-                horizontalAlignment = Alignment.CenterHorizontally // **Center content horizontally**
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = movie.title,
                     color = Color.White,
                     style = MaterialTheme.typography.titleMedium,
-                    textAlign = TextAlign.Center // **Center text within Text**
+                    textAlign = TextAlign.Center
                 )
                 Text(
                     text = "Release Date: ${movie.release_date}",
                     color = Color.Gray,
                     style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center // **Center text within Text**
+                    textAlign = TextAlign.Center
                 )
                 if ((movieType == "Liked Movies" || movieType == "Liked by Me" || movieType == "Liked by Both") && onWatchedClicked != null) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    // **Center the button horizontally**
                     OutlinedButton(
                         onClick = { onWatchedClicked(movie.id) },
                         modifier = Modifier.align(Alignment.CenterHorizontally),
@@ -624,7 +594,6 @@ fun MovieItem(
     }
 }
 
-
 fun moveMovieToWatched(
     user: FirebaseUser?,
     movieId: Int,
@@ -635,29 +604,26 @@ fun moveMovieToWatched(
 
     db.runTransaction { transaction ->
         val snapshot = transaction.get(userDocRef)
-
-        // Adjust the type casting based on how IDs are stored
         val likedMovies = snapshot.get("likedMovies") as? MutableList<Long> ?: mutableListOf()
         val watchedMovies = snapshot.get("watchedMovies") as? MutableList<Long> ?: mutableListOf()
 
-        // Remove from likedMovies if present
         if (likedMovies.contains(movieId.toLong())) {
             likedMovies.remove(movieId.toLong())
             transaction.update(userDocRef, "likedMovies", likedMovies)
         }
 
-        // Add to watchedMovies if not already present
         if (!watchedMovies.contains(movieId.toLong())) {
             watchedMovies.add(movieId.toLong())
             transaction.update(userDocRef, "watchedMovies", watchedMovies)
         }
     }.addOnSuccessListener {
         Log.d("Firebase", "Movie moved to watchedMovies successfully.")
-        onMovieMoved() // Call the callback to update UI
+        onMovieMoved()
     }.addOnFailureListener { e ->
         Log.w("Firebase", "Error moving movie to watchedMovies", e)
     }
 }
+
 @Composable
 fun MoviesList(movies: List<Movie>) {
     LazyColumn {
@@ -730,7 +696,6 @@ fun MoviesListDisplay(movies: List<Movie>, isLoading: Boolean, errorMessage: Str
     }
 }
 
-
 @Composable
 fun DrawerContent(
     scope: CoroutineScope,
@@ -738,7 +703,6 @@ fun DrawerContent(
     onScreenSelected: (String) -> Unit
 ) {
     val context = LocalContext.current
-    // Remember the selected item state
     var selectedItem by remember { mutableStateOf("mainScreen") }
 
     Column(
@@ -747,13 +711,10 @@ fun DrawerContent(
             .padding(PaddingValues(16.dp)),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // Top section with navigation items
         Column {
-            // Main Screen
             val mainItems = listOf("Main Screen", "Disliked Movies", "Watched Movies")
             val mainKeys = listOf("mainScreen", "dislikedMovies", "watchedMovies")
 
-            // Define the list of drawer items excluding liked movies
             mainItems.forEachIndexed { index, item ->
                 val key = mainKeys[index]
                 val backgroundColor = if (key == selectedItem) Color.DarkGray else Color.Transparent
@@ -773,7 +734,6 @@ fun DrawerContent(
                 )
             }
 
-            // Liked Movies section with sub-options
             val likedMoviesItems = listOf("Liked by Both", "Liked only by Me")
             val likedMoviesKeys = listOf("likedByBoth", "likedByMe")
 
@@ -806,7 +766,6 @@ fun DrawerContent(
             }
         }
 
-        // Bottom section with the "Log Out" option
         Column {
             Divider(color = Color.Gray, thickness = 1.dp)
             Text(
@@ -814,11 +773,8 @@ fun DrawerContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable {
-                        // Sign out the user
                         Firebase.auth.signOut()
-                        // Close the drawer
                         scope.launch { drawerState.close() }
-                        // Navigate back to the login screen
                         val intent = Intent(context, LoginRegisterActivity::class.java)
                         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                         context.startActivity(intent)
@@ -831,37 +787,29 @@ fun DrawerContent(
     }
 }
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConnectCodeScreen(currentUser: FirebaseUser?) {
-    // Initial state to handle generated or fetched code
     var connectionCode by remember { mutableStateOf<String?>(null) }
     var enteredCode by remember { mutableStateOf("") }
     val context = LocalContext.current
     val db = FirebaseFirestore.getInstance()
-
-    // State to handle polling for connectedTo field
     var isCheckingConnection by remember { mutableStateOf(true) }
     var hasConnected by remember { mutableStateOf(false) }
 
-    // Fetch or generate the connection code
     LaunchedEffect(currentUser) {
         if (currentUser != null) {
             val userDocRef = db.collection("users").document(currentUser.email.toString())
             userDocRef.get().addOnSuccessListener { document ->
                 if (document != null && document.exists()) {
-                    // Check if connectionCode already exists
                     val codeInFirestore = document.getString("connectionCode")
                     if (codeInFirestore.isNullOrEmpty()) {
-                        // If no code exists, generate a new one
                         val newCode = (100000..999999).random().toString()
                         userDocRef.update("connectionCode", newCode)
                             .addOnSuccessListener {
                                 connectionCode = newCode
                             }
                     } else {
-                        // If code exists, display it
                         connectionCode = codeInFirestore
                     }
                 }
@@ -871,7 +819,6 @@ fun ConnectCodeScreen(currentUser: FirebaseUser?) {
         }
     }
 
-    // Periodic check for the "connectedTo" field every 5 seconds
     LaunchedEffect(currentUser) {
         if (currentUser != null) {
             val userDocRef = db.collection("users").document(currentUser.email.toString())
@@ -881,11 +828,10 @@ fun ConnectCodeScreen(currentUser: FirebaseUser?) {
                     if (!connectedTo.isNullOrEmpty()) {
                         hasConnected = true
                         isCheckingConnection = false
-                        // Navigate to MainActivity when connectedTo is updated
                         context.startActivity(Intent(context, MainActivity::class.java))
                     }
                 }
-                delay(5000) // Check every 5 seconds
+                delay(5000)
             }
         }
     }
@@ -894,11 +840,10 @@ fun ConnectCodeScreen(currentUser: FirebaseUser?) {
         modifier = Modifier
             .fillMaxSize()
             .padding(32.dp)
-            .padding(top = 56.dp), // Leave space at the top
+            .padding(top = 56.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Display appropriate message based on whether the code is fetched/generated
         Text(
             "This is your code",
             style = MaterialTheme.typography.headlineMedium,
@@ -907,7 +852,6 @@ fun ConnectCodeScreen(currentUser: FirebaseUser?) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Show the generated or fetched connection code
         if (connectionCode != null) {
             Text(
                 connectionCode ?: "",
@@ -915,12 +859,11 @@ fun ConnectCodeScreen(currentUser: FirebaseUser?) {
                 color = Color.White
             )
         } else {
-            CircularProgressIndicator(color = Color.Red) // Show loading while fetching code
+            CircularProgressIndicator(color = Color.Red)
         }
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Input field for entering the connection code
         OutlinedTextField(
             value = enteredCode,
             onValueChange = { enteredCode = it },
@@ -936,7 +879,6 @@ fun ConnectCodeScreen(currentUser: FirebaseUser?) {
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        // Button to submit the entered code
         Button(
             onClick = {
                 db.collection("users")

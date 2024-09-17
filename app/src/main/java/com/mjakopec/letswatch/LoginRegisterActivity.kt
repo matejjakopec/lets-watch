@@ -53,17 +53,15 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.google.firebase.Firebase
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.auth
+import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.mjakopec.letswatch.ui.theme.LetsWatchTheme
 
 private lateinit var auth: FirebaseAuth
 
 class LoginRegisterActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         FirebaseApp.initializeApp(this)
@@ -76,6 +74,7 @@ class LoginRegisterActivity : ComponentActivity() {
         }
     }
 }
+
 @Composable
 fun LoginRegisterScreen() {
     var selectedTab by remember { mutableStateOf(0) }
@@ -113,10 +112,9 @@ fun LoginRegisterScreen() {
                     .fillMaxSize()
                     .background(Color.Black)
                     .padding(padding)
-                    .padding(top = 16.dp), // Padding from the top
+                    .padding(top = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // App Logo and Name at the Top
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
@@ -136,7 +134,6 @@ fun LoginRegisterScreen() {
                     )
                 }
 
-                // Content Area
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -144,7 +141,6 @@ fun LoginRegisterScreen() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    // Display "Login" or "Register" text
                     Text(
                         text = if (selectedTab == 0) "Login" else "Register",
                         color = Color.White,
@@ -153,7 +149,6 @@ fun LoginRegisterScreen() {
                     )
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Display the appropriate screen
                     when (selectedTab) {
                         0 -> LoginScreen()
                         1 -> RegisterScreen()
@@ -172,14 +167,12 @@ fun LoginScreen() {
     var password by remember { mutableStateOf("") }
     var passwordVisibility by remember { mutableStateOf(false) }
 
-    // Removed the outer Column to let the parent Column handle alignment
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Login Form
         OutlinedTextField(
             value = email,
             onValueChange = { email = it },
@@ -252,7 +245,6 @@ fun LoginScreen() {
     }
 }
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterScreen() {
@@ -264,7 +256,6 @@ fun RegisterScreen() {
     var passwordVisibility by remember { mutableStateOf(false) }
     var confirmPasswordVisibility by remember { mutableStateOf(false) }
 
-    // Initialize Firestore
     val db = FirebaseFirestore.getInstance()
 
     Column(
@@ -273,7 +264,6 @@ fun RegisterScreen() {
             .padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Email Field
         OutlinedTextField(
             value = email,
             onValueChange = { email = it },
@@ -290,8 +280,6 @@ fun RegisterScreen() {
             )
         )
         Spacer(modifier = Modifier.height(8.dp))
-
-        // Username Field
         OutlinedTextField(
             value = username,
             onValueChange = { username = it },
@@ -308,8 +296,6 @@ fun RegisterScreen() {
             )
         )
         Spacer(modifier = Modifier.height(8.dp))
-
-        // Password Field
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
@@ -336,8 +322,6 @@ fun RegisterScreen() {
             )
         )
         Spacer(modifier = Modifier.height(8.dp))
-
-        // Confirm Password Field
         OutlinedTextField(
             value = confirmPassword,
             onValueChange = { confirmPassword = it },
@@ -364,35 +348,28 @@ fun RegisterScreen() {
             )
         )
         Spacer(modifier = Modifier.height(16.dp))
-
-        // Register Button
         Button(
             onClick = {
                 if (password != confirmPassword) {
                     Toast.makeText(context, "Passwords do not match", Toast.LENGTH_SHORT).show()
                     return@Button
                 }
-
-                // Create a user with Firebase Authentication
                 auth.createUserWithEmailAndPassword(email.trim(), password)
                     .addOnCompleteListener { task ->
                         if (task.isSuccessful) {
                             val user = auth.currentUser
-                            // Add user to Firestore
                             val userData = hashMapOf(
                                 "email" to email,
                                 "username" to username,
-                                "likedMovies" to emptyList<Long>(),  // Initialize empty lists
+                                "likedMovies" to emptyList<Long>(),
                                 "dislikedMovies" to emptyList<Long>(),
                                 "watchedMovies" to emptyList<Long>(),
                                 "connectedTo" to ""
                             )
-                            // Store user data in Firestore
                             db.collection("users").document(user?.email.toString())
                                 .set(userData)
                                 .addOnSuccessListener {
                                     Toast.makeText(context, "Registration successful.", Toast.LENGTH_LONG).show()
-                                    // Redirect to MainActivity
                                     context.startActivity(Intent(context, MainActivity::class.java))
                                 }
                                 .addOnFailureListener { e ->
